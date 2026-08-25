@@ -1,0 +1,61 @@
+default_install_hook_types = ["pre-commit", "pre-push"]
+
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v5.0.0"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+
+[[repos.hooks]]
+id = "check-json"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+
+[[repos.hooks]]
+id = "check-toml"
+
+[[repos.hooks]]
+id = "check-xml"
+
+[[repos.hooks]]
+id = "check-yaml"
+args = ["--unsafe"]
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+
+[[repos.hooks]]
+id = "mixed-line-ending"
+args = ["--fix=lf"]
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "rust-fmt"
+name = "rust fmt"
+entry = "cargo fmt -- --check"
+language = "system"
+pass_filenames = false
+types = ["rust"]
+
+[[repos.hooks]]
+id = "rust-clippy"
+name = "rust clippy"
+entry = "cargo clippy --all-targets --all-features -- -D warnings"
+language = "system"
+pass_filenames = false
+types = ["rust"]
+
+[[repos.hooks]]
+id = "rust-test"
+name = "rust test"
+entry = "cargo test"
+language = "system"
+pass_filenames = false
+types = ["rust"]
