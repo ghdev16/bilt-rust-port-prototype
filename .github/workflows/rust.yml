@@ -32,5 +32,8 @@ jobs:
     - name: Test with Cargo
       run: cargo test --all-targets --all-features --verbose
 
+    - name: Install prek
+      run: cargo install prek
+
     - name: Check with prek
       run: prek run --all-files
