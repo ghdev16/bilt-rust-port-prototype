@@ -40,7 +40,7 @@ impl fmt::Display for Equation {
 
 fn tree_to_str(tree: &Tree) -> String {
     if tree.is_leaf() {
-        format!("{}", tree.value().name())
+        tree.value().name().to_string()
     } else {
         if tree.children().len() == 1 {
             format!(
@@ -53,7 +53,7 @@ fn tree_to_str(tree: &Tree) -> String {
                 "({})",
                 tree.children()
                     .iter()
-                    .map(|tree| tree_to_str(tree))
+                    .map(tree_to_str)
                     .collect::<Vec<String>>()
                     .join(&format!(" {} ", tree.value().name()))
             )

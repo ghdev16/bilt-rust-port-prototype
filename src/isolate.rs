@@ -148,7 +148,7 @@ fn simplify_inversions(tree: Tree) -> Tree {
             *tree.value(),
             tree.into_children()
                 .into_iter()
-                .map(|child| simplify_inversions(child))
+                .map(simplify_inversions)
                 .collect(),
         )
     }

@@ -9,8 +9,8 @@ fn test_leaf() {
 
     let my_tree = Tree::new(x, vec![]);
     assert_eq!(*my_tree.value(), x);
-    assert_eq!(my_tree.is_leaf(), true);
-    assert_eq!(my_tree.is_binary(), false);
+    assert!(my_tree.is_leaf());
+    assert!(!my_tree.is_binary());
     assert_eq!(my_tree.left(), None);
     assert_eq!(my_tree.right(), None);
 }
@@ -25,8 +25,8 @@ fn test_add() {
 
     let my_tree = Tree::new(BinaryOp::ADD, vec![lhs.clone(), rhs.clone()]);
     assert_eq!(*my_tree.value(), BinaryOp::ADD);
-    assert_eq!(my_tree.is_leaf(), false);
-    assert_eq!(my_tree.is_binary(), true);
+    assert!(!my_tree.is_leaf());
+    assert!(my_tree.is_binary());
     assert_eq!(my_tree.left(), Some(&lhs));
     assert_eq!(my_tree.right(), Some(&rhs));
 }
