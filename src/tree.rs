@@ -19,7 +19,7 @@ impl Tree {
     }
 
     pub fn new_chain(atom_chain: &[Atom]) -> Tree {
-        if atom_chain.len() == 0 {
+        if atom_chain.is_empty() {
             panic!("Expected at least one element in the chain");
         } else if atom_chain.len() == 1 {
             Tree::new_leaf(atom_chain[0])

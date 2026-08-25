@@ -35,10 +35,10 @@ impl AtomType {
     pub const RELATION_OP: &str = "RELATION_OP";
 
     const fn is_internal_type(atom_type: &str) -> bool {
-        match atom_type.as_bytes() {
-            b"SYMBOL" | b"BINARY_OP" | b"UNARY_OP" | b"RELATION_OP" => true,
-            _ => false,
-        }
+        matches!(
+            atom_type.as_bytes(),
+            b"SYMBOL" | b"BINARY_OP" | b"UNARY_OP" | b"RELATION_OP"
+        )
     }
 }
 
@@ -50,7 +50,7 @@ impl Symbol {
     pub const fn get(name: &'static str) -> Atom {
         Atom {
             atom_type: AtomType::SYMBOL,
-            name: name,
+            name,
         }
     }
 }
@@ -66,7 +66,7 @@ impl BinaryOp {
     pub const fn get(name: &'static str) -> Atom {
         Atom {
             atom_type: AtomType::BINARY_OP,
-            name: name,
+            name,
         }
     }
 }
@@ -79,7 +79,7 @@ impl UnaryOp {
     pub const fn get(name: &'static str) -> Atom {
         Atom {
             atom_type: AtomType::UNARY_OP,
-            name: name,
+            name,
         }
     }
 }
@@ -94,7 +94,7 @@ impl RelationOp {
     pub const fn get(name: &'static str) -> Atom {
         Atom {
             atom_type: AtomType::RELATION_OP,
-            name: name,
+            name,
         }
     }
 }
