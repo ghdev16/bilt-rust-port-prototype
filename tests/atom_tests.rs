@@ -1,4 +1,4 @@
-use bilt_rust::atom::{AtomType, BinaryOp, RelationOp, Symbol};
+use bilt_rust::atom::{Atom, AtomType, BinaryOp, RelationOp, Symbol};
 
 #[test]
 fn test_same_type_and_name_equal() {
@@ -23,7 +23,13 @@ fn test_types() {
     let add = BinaryOp::ADD;
     let equals = RelationOp::EQUALS;
 
-    assert_eq!(x.atom_type(), AtomType::Symbol);
-    assert_eq!(add.atom_type(), AtomType::BinaryOp);
-    assert_eq!(equals.atom_type(), AtomType::RelationOp);
+    assert_eq!(x.atom_type(), AtomType::SYMBOL);
+    assert_eq!(add.atom_type(), AtomType::BINARY_OP);
+    assert_eq!(equals.atom_type(), AtomType::RELATION_OP);
+}
+
+#[test]
+#[should_panic(expected = "Can't get atom of internal type through this public getter.")]
+fn external_code_blocked_from_instantiating_internally_typed_atom() {
+    _ = Atom::get(AtomType::SYMBOL, "+");
 }
