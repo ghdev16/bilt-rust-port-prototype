@@ -4,6 +4,17 @@ use crate::{
     tree::Tree,
 };
 
+pub struct IsolationOp;
+
+impl IsolationOp {
+    pub const ISOLATION_OP: &str = "ISOLATION_OP";
+    pub const INV: Atom = Self::get("INV");
+
+    pub const fn get(name: &'static str) -> Atom {
+        Atom::get(Self::ISOLATION_OP, name)
+    }
+}
+
 /// Assumption: subject only appears once in the equation
 pub fn isolate(target: &Atom, in_eqn: &Equation) -> Equation {
     let analysis = analyze_equation_with_target(target, in_eqn);
@@ -68,14 +79,14 @@ fn isolate_by_inversions(target: &Atom, lhs: Tree, rhs: Tree) -> (Tree, Tree) {
         let post_children = children.drain((index_of_child_with_target + 1)..);
 
         for child in post_children {
-            let inverse_part = Tree::new(UnaryOp::INV, vec![Tree::new(operator, vec![child])]);
+            let inverse_part = Tree::new(IsolationOp::INV, vec![Tree::new(operator, vec![child])]);
             rhs = Tree::new(operator, vec![rhs, inverse_part]);
         }
 
         let next_lhs = children.pop().unwrap();
 
         for child in children {
-            let inverse_part = Tree::new(UnaryOp::INV, vec![Tree::new(operator, vec![child])]);
+            let inverse_part = Tree::new(IsolationOp::INV, vec![Tree::new(operator, vec![child])]);
             rhs = Tree::new(operator, vec![inverse_part, rhs]);
         }
 
@@ -109,7 +120,7 @@ fn simplify_inversions(tree: Tree) -> Tree {
         return tree;
     }
 
-    if tree.value() == &UnaryOp::INV {
+    if tree.value() == &IsolationOp::INV {
         assert_eq!(tree.children().len(), 1);
         assert_eq!(tree.children()[0].children().len(), 1);
 
@@ -147,7 +158,7 @@ fn simplify_inversions(tree: Tree) -> Tree {
 mod tests {
     use crate::{
         atom::{BinaryOp, Symbol, UnaryOp},
-        isolate::{count_occurrences, simplify_inversions},
+        isolate::{IsolationOp, count_occurrences, simplify_inversions},
         tree::Tree,
     };
 
@@ -217,10 +228,11 @@ mod tests {
 
     #[test]
     fn test_simplify_invs() {
-        let inv_subtraction = Tree::new_chain(&[UnaryOp::INV, BinaryOp::SUB, Symbol::get("c")]);
-        let inv_division = Tree::new_chain(&[UnaryOp::INV, BinaryOp::DIV, Symbol::get("c")]);
-        let inv_addition = Tree::new_chain(&[UnaryOp::INV, BinaryOp::ADD, Symbol::get("c")]);
-        let inv_multiplication = Tree::new_chain(&[UnaryOp::INV, BinaryOp::MUL, Symbol::get("c")]);
+        let inv_subtraction = Tree::new_chain(&[IsolationOp::INV, BinaryOp::SUB, Symbol::get("c")]);
+        let inv_division = Tree::new_chain(&[IsolationOp::INV, BinaryOp::DIV, Symbol::get("c")]);
+        let inv_addition = Tree::new_chain(&[IsolationOp::INV, BinaryOp::ADD, Symbol::get("c")]);
+        let inv_multiplication =
+            Tree::new_chain(&[IsolationOp::INV, BinaryOp::MUL, Symbol::get("c")]);
 
         assert_eq!(
             simplify_inversions(inv_subtraction),
