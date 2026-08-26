@@ -1,5 +1,5 @@
 use crate::{
-    atom::{Atom, BinaryOp, Symbol, UnaryOp},
+    atom::{Atom, BinaryOp},
     equation::Equation,
     tree::Tree,
 };
@@ -27,10 +27,7 @@ pub fn isolate(target: &Atom, in_eqn: &Equation) -> Equation {
         std::mem::swap(&mut lhs, &mut rhs);
     }
 
-    (lhs, rhs) = isolate_by_inversions(target, lhs, rhs);
-
-    lhs = simplify_inversions(lhs);
-    rhs = simplify_inversions(rhs);
+    (lhs, rhs) = isolate_directly(target, lhs, rhs);
 
     Equation::new(lhs, rhs)
 }
@@ -58,42 +55,80 @@ fn validate_from_analysis(analysis: &EquationWithTargetAnalysis) {
     }
 }
 
-fn isolate_by_inversions(target: &Atom, lhs: Tree, rhs: Tree) -> (Tree, Tree) {
+fn isolate_directly(target: &Atom, lhs: Tree, rhs: Tree) -> (Tree, Tree) {
     let mut lhs = lhs;
     let mut rhs = rhs;
 
     while lhs.value() != target {
-        let occurrences_of_target_in_children: Vec<usize> = lhs
-            .children()
-            .iter()
-            .map(|child| count_occurrences(target, child))
-            .collect();
-
-        let index_of_child_with_target = occurrences_of_target_in_children
-            .iter()
-            .position(|&x| x == 1)
-            .unwrap();
-
-        let operator = *lhs.value();
-        let mut children = lhs.into_children();
-        let post_children = children.drain((index_of_child_with_target + 1)..);
-
-        for child in post_children {
-            let inverse_part = Tree::new(IsolationOp::INV, vec![Tree::new(operator, vec![child])]);
-            rhs = Tree::new(operator, vec![rhs, inverse_part]);
-        }
-
-        let next_lhs = children.pop().unwrap();
-
-        for child in children {
-            let inverse_part = Tree::new(IsolationOp::INV, vec![Tree::new(operator, vec![child])]);
-            rhs = Tree::new(operator, vec![inverse_part, rhs]);
-        }
-
-        lhs = next_lhs
+        (lhs, rhs) = do_isolation_step(target, lhs, rhs);
     }
 
     (lhs, rhs)
+}
+
+fn do_isolation_step(target: &Atom, lhs: Tree, rhs: Tree) -> (Tree, Tree) {
+    let top_level_op = *lhs.value();
+    let index_of_child_with_target = locate_target(target, &lhs);
+    let [left_operand, right_operand] = lhs
+        .into_children()
+        .try_into()
+        .expect("Expected exactly two children."); // TODO: Currently won't work for a unary op or multi op in the original equation (e.g. -a + b = c)
+    let is_target_on_left = index_of_child_with_target == 0;
+
+    if is_target_on_left {
+        match top_level_op {
+            BinaryOp::ADD => (
+                left_operand,
+                Tree::new(BinaryOp::SUB, vec![rhs, right_operand]),
+            ),
+            BinaryOp::SUB => (
+                left_operand,
+                Tree::new(BinaryOp::ADD, vec![rhs, right_operand]),
+            ),
+            BinaryOp::MUL => (
+                left_operand,
+                Tree::new(BinaryOp::DIV, vec![rhs, right_operand]),
+            ),
+            BinaryOp::DIV => (
+                left_operand,
+                Tree::new(BinaryOp::MUL, vec![rhs, right_operand]),
+            ),
+            _ => unimplemented!(),
+        }
+    } else {
+        match top_level_op {
+            BinaryOp::ADD => (
+                right_operand,
+                Tree::new(BinaryOp::SUB, vec![rhs, left_operand]),
+            ),
+            BinaryOp::SUB => (
+                right_operand,
+                Tree::new(BinaryOp::SUB, vec![left_operand, rhs]),
+            ),
+            BinaryOp::MUL => (
+                right_operand,
+                Tree::new(BinaryOp::DIV, vec![rhs, left_operand]),
+            ),
+            BinaryOp::DIV => (
+                right_operand,
+                Tree::new(BinaryOp::DIV, vec![left_operand, rhs]),
+            ),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+fn locate_target(target: &Atom, lhs: &Tree) -> usize {
+    let occurrences_of_target_in_children: Vec<usize> = lhs
+        .children()
+        .iter()
+        .map(|child| count_occurrences(target, child))
+        .collect();
+
+    occurrences_of_target_in_children
+        .iter()
+        .position(|&x| x == 1)
+        .unwrap()
 }
 
 fn count_occurrences(target: &Atom, in_tree: &Tree) -> usize {
@@ -115,50 +150,11 @@ fn count_occurrences(target: &Atom, in_tree: &Tree) -> usize {
     count
 }
 
-fn simplify_inversions(tree: Tree) -> Tree {
-    if tree.is_leaf() {
-        return tree;
-    }
-
-    if tree.value() == &IsolationOp::INV {
-        assert_eq!(tree.children().len(), 1);
-        assert_eq!(tree.children()[0].children().len(), 1);
-
-        let inv_node = tree;
-        assert_eq!(inv_node.children().len(), 1);
-
-        let op_node = inv_node.into_children().pop().unwrap();
-        assert_eq!(op_node.children().len(), 1);
-
-        let op_to_invert = *op_node.value();
-        let op_child = op_node.into_children().pop().unwrap();
-        let simplified_child = simplify_inversions(op_child);
-
-        match op_to_invert {
-            BinaryOp::SUB | BinaryOp::DIV => simplified_child,
-            BinaryOp::ADD => Tree::new(UnaryOp::NEG, vec![simplified_child]),
-            BinaryOp::MUL => Tree::new(
-                BinaryOp::DIV,
-                vec![Tree::new_leaf(Symbol::ONE), simplified_child],
-            ),
-            _ => unimplemented!(),
-        }
-    } else {
-        Tree::new(
-            *tree.value(),
-            tree.into_children()
-                .into_iter()
-                .map(simplify_inversions)
-                .collect(),
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        atom::{BinaryOp, Symbol, UnaryOp},
-        isolate::{IsolationOp, count_occurrences, simplify_inversions},
+        atom::{BinaryOp, Symbol},
+        isolate::{count_occurrences, do_isolation_step},
         tree::Tree,
     };
 
@@ -227,32 +223,216 @@ mod tests {
     }
 
     #[test]
-    fn test_simplify_invs() {
-        let inv_subtraction = Tree::new_chain(&[IsolationOp::INV, BinaryOp::SUB, Symbol::get("c")]);
-        let inv_division = Tree::new_chain(&[IsolationOp::INV, BinaryOp::DIV, Symbol::get("c")]);
-        let inv_addition = Tree::new_chain(&[IsolationOp::INV, BinaryOp::ADD, Symbol::get("c")]);
-        let inv_multiplication =
-            Tree::new_chain(&[IsolationOp::INV, BinaryOp::MUL, Symbol::get("c")]);
+    fn test_do_isolation_step_add_with_left_target() {
+        let lhs = Tree::new(
+            BinaryOp::ADD,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("a");
 
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("a")));
         assert_eq!(
-            simplify_inversions(inv_subtraction),
-            Tree::new_leaf(Symbol::get("c"))
+            new_rhs,
+            Tree::new(
+                BinaryOp::SUB,
+                vec![
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("b"))
+                ]
+            )
         );
-        assert_eq!(
-            simplify_inversions(inv_division),
-            Tree::new_leaf(Symbol::get("c"))
+    }
+
+    #[test]
+    fn test_do_isolation_step_add_with_right_target() {
+        let lhs = Tree::new(
+            BinaryOp::ADD,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
         );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("b");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("b")));
         assert_eq!(
-            simplify_inversions(inv_addition),
-            Tree::new_chain(&[UnaryOp::NEG, Symbol::get("c")])
+            new_rhs,
+            Tree::new(
+                BinaryOp::SUB,
+                vec![
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("a"))
+                ]
+            )
         );
+    }
+
+    #[test]
+    fn test_do_isolation_step_sub_with_left_target() {
+        let lhs = Tree::new(
+            BinaryOp::SUB,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("a");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("a")));
         assert_eq!(
-            simplify_inversions(inv_multiplication),
+            new_rhs,
+            Tree::new(
+                BinaryOp::ADD,
+                vec![
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("b"))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_do_isolation_step_sub_with_right_target() {
+        let lhs = Tree::new(
+            BinaryOp::SUB,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("b");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("b")));
+        assert_eq!(
+            new_rhs,
+            Tree::new(
+                BinaryOp::SUB,
+                vec![
+                    Tree::new_leaf(Symbol::get("a")),
+                    Tree::new_leaf(Symbol::get("c"))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_do_isolation_step_mul_with_left_target() {
+        let lhs = Tree::new(
+            BinaryOp::MUL,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("a");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("a")));
+        assert_eq!(
+            new_rhs,
             Tree::new(
                 BinaryOp::DIV,
                 vec![
-                    Tree::new_leaf(Symbol::ONE),
-                    Tree::new_leaf(Symbol::get("c"))
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("b"))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_do_isolation_step_mul_with_right_target() {
+        let lhs = Tree::new(
+            BinaryOp::MUL,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("b");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("b")));
+        assert_eq!(
+            new_rhs,
+            Tree::new(
+                BinaryOp::DIV,
+                vec![
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("a"))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_do_isolation_step_div_with_left_target() {
+        let lhs = Tree::new(
+            BinaryOp::DIV,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("a");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("a")));
+        assert_eq!(
+            new_rhs,
+            Tree::new(
+                BinaryOp::MUL,
+                vec![
+                    Tree::new_leaf(Symbol::get("c")),
+                    Tree::new_leaf(Symbol::get("b"))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_do_isolation_step_div_with_right_target() {
+        let lhs = Tree::new(
+            BinaryOp::DIV,
+            vec![
+                Tree::new_leaf(Symbol::get("a")),
+                Tree::new_leaf(Symbol::get("b")),
+            ],
+        );
+        let rhs = Tree::new_leaf(Symbol::get("c"));
+        let target = Symbol::get("b");
+
+        let (new_lhs, new_rhs) = do_isolation_step(&target, lhs, rhs);
+
+        assert_eq!(new_lhs, Tree::new_leaf(Symbol::get("b")));
+        assert_eq!(
+            new_rhs,
+            Tree::new(
+                BinaryOp::DIV,
+                vec![
+                    Tree::new_leaf(Symbol::get("a")),
+                    Tree::new_leaf(Symbol::get("c")),
                 ]
             )
         );
